@@ -267,6 +267,21 @@ class TrunkDetector:
         return seg_results
 
 
+# class applying only oriented object detection without instance segmentation or fusion
+class OBBDetector(TrunkDetector):
+    def __init__(self, obb_model_path):
+        self.obb_model = self.load_model(self.DEFAULT_MODEL_OBB if obb_model_path is None else obb_model_path)
+        self.seg_model = None
+
+    def process_image(self, image, min_confidence=0.4) -> dict[int, Detection]:
+        obbs = self.detect_obbs(image, min_confidence)
+        detections = []
+        for label in obbs:
+            for obb in obbs[label]:
+                detections.append(Detection(label, Detection.Component(obb)))
+        return dict(enumerate(detections))
+
+
 # class for tracking trunks with consistent ids across multiple frames
 class TrunkTracker(TrunkDetector):
     # initialize with models for oriented object detection detection and instance segmentation,

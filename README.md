@@ -4,6 +4,9 @@
 
 TimberVision is a dataset and framework for tree-trunk detection and tracking based on RGB images. It combines the advantages of oriented object detection and instance segmentation for optimizing robustness and efficiency, as described in the corresponding [paper](https://arxiv.org/pdf/2501.07360v1) and [poster](./figures/timbervision_poster.pdf) presented at WACV 2025. This repository contains source code, models, configuration files and documentation. Images and annotations of the TimberVision dataset are available [here](https://zenodo.org/records/14825846).
 
+## Acknowledgment
+
+This repository is based on [TimberVision](https://github.com/timbervision/timbervision) by Steininger, D., Simon, J., Trondl, A., & Murschitz, M. (AIT Austrian Institute of Technology), presented at WACV 2025. The original work is licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/). This repository contains modifications to the original code.
 
 ## Setup
 

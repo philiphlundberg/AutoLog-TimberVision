@@ -2,3 +2,15 @@ fusion/models/
 results_mot.csv
 */__pycache__/
 .vscode/
+*.mp4
+*.avi
+*.png
+*.jpg
+
+# Ignore training files
+timbervision/
+*.zip
+*.yaml
+
+# Ignore pt files
+*.pt
