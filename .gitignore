@@ -6,6 +6,8 @@ results_mot.csv
 *.avi
 *.png
 *.jpg
+*.csv
+*.json
 
 # Ignore training files
 timbervision/

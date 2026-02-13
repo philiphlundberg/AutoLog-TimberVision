@@ -158,6 +158,12 @@ class Detection:
                                  if c.has_score()]).minimum_rotated_rectangle
         return poly2xywhr(obb)
 
+    def axis_endpoints(self):
+        cx, cy, w, h, angle = self.xywhr()
+        dx = np.cos(angle) * w * 0.5
+        dy = np.sin(angle) * w * 0.5
+        return (cx - dx, cy - dy), (cx + dx, cy + dy)
+
 
 # class applying oriented object detection and instance segmentation on individual frames and fusing results
 class TrunkDetector:

@@ -1,4 +1,6 @@
 import argparse
+import csv
+import json
 import os
 import time
 import cv2
@@ -86,6 +88,8 @@ def parse_arguments():
                         help='use only segmentation model (skip OBB detection)')
     parser.add_argument('--obb_only', action='store_true', default=False,
                         help='use only OBB model (skip segmentation and fusion)')
+    parser.add_argument('--export_axes', action='store_true', default=False,
+                        help='export axis endpoints and OBB parameters as JSON per frame and summary CSV')
 
     return parser.parse_args()
 
@@ -101,13 +105,47 @@ def process_frame(fusion, output_format, image, min_confidence):
     render_ms = (time.perf_counter() - t0) * 1000
 
     total_ms = detect_ms + render_ms
-    return result, total_ms
+    return result, detections, total_ms
+
+
+# export axis endpoints and OBB parameters for all detections in a frame
+def export_axes(frame_name, detections, axes_dir, csv_rows):
+    frame_data = []
+    for det_id, det in detections.items():
+        if not det.has_detected_obb():
+            continue
+        (x1, y1), (x2, y2) = det.axis_endpoints()
+        cx, cy, w, h, angle = det.xywhr()
+        entry = {
+            'detection_id': int(det_id),
+            'axis_p1': [round(x1, 1), round(y1, 1)],
+            'axis_p2': [round(x2, 1), round(y2, 1)],
+            'center': [round(cx, 1), round(cy, 1)],
+            'width': round(w, 1),
+            'height': round(h, 1),
+            'angle': round(angle, 4),
+            'confidence': round(det.confidence(), 4),
+        }
+        frame_data.append(entry)
+        csv_rows.append([frame_name, int(det_id),
+                         round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1),
+                         round(cx, 1), round(cy, 1), round(w, 1), round(h, 1),
+                         round(angle, 4), round(det.confidence(), 4)])
+
+    with open(os.path.join(axes_dir, f'{frame_name}.json'), 'w') as f:
+        json.dump({'frame': frame_name, 'detections': frame_data}, f, indent=2)
 
 
 # read a directory of images or a video file and apply detection and optionally tracking for each frame
 def demo(obb_model_path, seg_model_path, input_path, results_dir, min_confidence, clip_margin, tracker_config,
-         tracking, generate_masks, show_scores, seg_only=False, obb_only=False):
+         tracking, generate_masks, show_scores, seg_only=False, obb_only=False, export_axes_flag=False):
     os.makedirs(results_dir, exist_ok=True)
+
+    csv_rows = []
+    axes_dir = None
+    if export_axes_flag:
+        axes_dir = os.path.join(results_dir, 'axes')
+        os.makedirs(axes_dir, exist_ok=True)
 
     # initialize detection/tracking and result format
     print('loading models...')
@@ -141,8 +179,10 @@ def demo(obb_model_path, seg_model_path, input_path, results_dir, min_confidence
         # read input data from image files and generate result images
         for image_name in sorted(os.listdir(input_path)):
             image = cv2.imread(os.path.join(input_path, image_name))
-            result, total_ms = process_frame(fusion, output_format, image, min_confidence)
+            result, detections, total_ms = process_frame(fusion, output_format, image, min_confidence)
             cv2.imwrite(os.path.join(results_dir, f'{os.path.splitext(image_name)[0]}.png'), result)
+            if axes_dir is not None:
+                export_axes(os.path.splitext(image_name)[0], detections, axes_dir, csv_rows)
             torch.cuda.empty_cache()
             frame_count += 1
             cumulative_ms += total_ms
@@ -162,8 +202,10 @@ def demo(obb_model_path, seg_model_path, input_path, results_dir, min_confidence
             ret, frame = cap_input.read()
             if not ret:
                 break
-            result, total_ms = process_frame(fusion, output_format, frame, min_confidence)
+            result, detections, total_ms = process_frame(fusion, output_format, frame, min_confidence)
             output.write(result)
+            if axes_dir is not None:
+                export_axes(f'frame_{frame_count:06d}', detections, axes_dir, csv_rows)
             torch.cuda.empty_cache()
             frame_count += 1
             cumulative_ms += total_ms
@@ -179,12 +221,21 @@ def demo(obb_model_path, seg_model_path, input_path, results_dir, min_confidence
         print(f'Frames processed: {frame_count}')
         print(f'Average per frame: {avg_ms:.1f}ms ({1000.0 / avg_ms:.1f} fps)')
 
+    if csv_rows:
+        csv_path = os.path.join(results_dir, 'axes.csv')
+        with open(csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['frame', 'detection_id', 'axis_x1', 'axis_y1', 'axis_x2', 'axis_y2',
+                              'cx', 'cy', 'w', 'h', 'angle', 'confidence'])
+            writer.writerows(csv_rows)
+        print(f'Axis data exported: {len(csv_rows)} detections -> {csv_path}')
+
 
 def main():
     args = parse_arguments()
     demo(args.obb_model, args.seg_model, args.input, args.results_dir, args.min_confidence,
          args.clip_margin, args.tracker_config, args.track, args.mask, args.show_scores, args.seg_only,
-         args.obb_only)
+         args.obb_only, args.export_axes)
 
 
 if __name__ == '__main__':
